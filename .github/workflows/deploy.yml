@@ -1,0 +1,81 @@
+name: Build,Scan&Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy.yaml
+
+jobs:
+  sonarscan:
+    name: sonarscan
+    runs-on: [Tic]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: scan with sonarQube
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  build:
+    name: build
+    needs: sonarscan
+    runs-on: [Tic]
+    steps:	  
+      - name: npm to install dependency
+        run: npm install
+
+  trivyfsscan:
+    name: trivyfsscan
+    needs: build
+    runs-on: [Tic]
+    steps:	  
+      - name: trivy fs scan
+        run: trivy fs . > trivyfs.txt
+  build_push:
+    name: build_push
+    needs: trivyfsscan
+    runs-on: [Tic]
+    steps:
+      - name: Build & Push Docker image
+        run: |
+          docker build -t sriramk16/tic-tac-toe:latest .
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push sriramk16/tic-tac-toe:latest
+
+  trivyimagescan:
+    name: trivyimagescan
+    needs: build_push
+    runs-on: [Tic]
+    steps:
+      - name: trivy image scan
+        run: trivy image sriramk16/tic-tac-toe:latest > trivyimage.txt
+
+  deploy:
+    name: deploy
+    needs: trivyimagescan
+    runs-on: [Tic]
+    steps:
+      - name: update kubeconfig
+        run: aws eks --region us-east-1 update-kubeconfig --name tic-tac-toe-cluster
+      - name: deploy to eks
+        run: kubectl apply -f deployment-service.yml
+  notify:
+    name: notify
+    needs: deploy
+    runs-on: [Eks]
+    steps:
+    - name: send notification to slack
+      uses: act10ns/slack@v1
+      if: always()
+      with:
+         status: ${{ job.status }}
+         steps: ${{ toJson(steps) }}
+         channel: '#github_actions_integration'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
