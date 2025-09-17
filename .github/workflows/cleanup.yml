@@ -1,0 +1,29 @@
+name: cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup.yaml
+jobs:
+  deletedeploy:
+    name: deletedeploy
+    runs-on: [Eks]
+    steps:
+      - name: delete deployment
+        run: kubectl delete -f deployment-service.yml
+  notify:
+    name: notify
+    needs: deletedeploy
+    runs-on: [Eks]
+    steps:
+      - name: send notification to slack
+        uses: act10ns/slack@v1
+        if: always()
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+          channel: '#github_actions_integration'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
