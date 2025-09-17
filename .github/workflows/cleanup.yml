@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - .github/workflows/cleanup.yaml
+      - .github/workflows/cleanup.yml
 jobs:
   deletedeploy:
     name: deletedeploy
