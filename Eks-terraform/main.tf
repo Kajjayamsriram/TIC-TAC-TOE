@@ -32,13 +32,23 @@ data "aws_subnets" "public" {
     values = [data.aws_vpc.default.id]
   }
 }
+
+locals {
+  desired_azs = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+  subnets_in_abc = [
+    for subnet in data.aws_subnets.public.subnets : subnet.id
+    if contains(local.desired_azs, subnet.availability_zone)
+  ]
+}
+
 #cluster provision
 resource "aws_eks_cluster" "example" {
-  name     = "EKS_CLOUD"
+  name     = "tic-tac-toe-cluster"
   role_arn = aws_iam_role.example.arn
 
   vpc_config {
-    subnet_ids = data.aws_subnets.public.ids
+    subnet_ids = local.subnets_in_abc
   }
 
   # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
@@ -81,9 +91,9 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryRea
 #create node group
 resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
-  node_group_name = "Node-cloud"
+  node_group_name = "tic-tac-toe-node"
   node_role_arn   = aws_iam_role.example1.arn
-  subnet_ids      = data.aws_subnets.public.ids
+  subnet_ids      = local.subnets_in_abc
 
   scaling_config {
     desired_size = 1
