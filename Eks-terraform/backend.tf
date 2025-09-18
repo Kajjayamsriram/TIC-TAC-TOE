@@ -1,7 +1,9 @@
 terraform {
   backend "s3" {
-    bucket = "ajay-mrcloudbook777" # Replace with your actual S3 bucket name
-    key    = "EKS/terraform.tfstate"
-    region = "ap-south-1"
+    bucket         = "terraforms3backend2025"
+    key            = "Eks/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-lock-table"
+    encrypt        = true
   }
 }
